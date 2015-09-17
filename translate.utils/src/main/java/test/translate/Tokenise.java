@@ -16,6 +16,13 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.DefaultParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
+
 import qsptools.translator.bean.DicoEntry;
 import qsptools.translator.model.DicoTableModel;
 import qsptools.translator.utils.TranslatorUtils;
@@ -24,12 +31,19 @@ import translator.service.get.impl.GoogleTranslation;
 
 public class Tokenise {
 
-	public static void main(String[] args) throws FileNotFoundException, IOException {
-		File dictionary = new File(args[0]);
+	private File dictionary;
+	private File original;
+	private File translatedOutputFile;
 
+	public Tokenise(CommandLine commandLine) {
+		dictionary = new File(commandLine.getOptionValue("d"));
+		original = new File(commandLine.getOptionValue("i"));
+		translatedOutputFile = new File(commandLine.getOptionValue("o"));
+	}
+
+	private void go() throws IOException {
 		Map<String, String> cyrillicText = loadDictionary(dictionary);
 
-		File original = new File(args[1]);
 		String content = loadOriginal(original);
 
 		getTokens(cyrillicText, content);
@@ -38,12 +52,18 @@ public class Tokenise {
 
 		TranslatorUtils.persistDico(cyrillicText, dictionary);
 
-		File translatedOutputFile = new File(args[2]);
 		saveTranslated(translatedOutputFile, translatedText);
-
 	}
 
-	private static Map<String, String> loadDictionary(File dictionary) {
+	private static Options getCommandLineOptions() {
+		Options opts = new Options();
+		opts.addOption(Option.builder("d").argName("dictionary").required().hasArg().build());
+		opts.addOption(Option.builder("i").argName("input").required().hasArg().build());
+		opts.addOption(Option.builder("o").argName("output").required().hasArg().build());
+		return opts;
+	}
+
+	private Map<String, String> loadDictionary(File dictionary) {
 		Map<String, String> cyrillicText = new HashMap<>();
 
 		DicoTableModel model = new DicoTableModel();
@@ -56,7 +76,7 @@ public class Tokenise {
 		return cyrillicText;
 	}
 
-	private static String loadOriginal(File original) throws IOException {
+	private String loadOriginal(File original) throws IOException {
 		ByteArrayOutputStream baos = new ByteArrayOutputStream();
 		try (BufferedInputStream bis = new BufferedInputStream(new FileInputStream(original))) {
 			byte[] buf = new byte[1024];
@@ -68,7 +88,7 @@ public class Tokenise {
 		return new String(baos.toByteArray(), "UTF-8");
 	}
 
-	private static void getTokens(Map<String, String> cyrillicText, String content) {
+	private void getTokens(Map<String, String> cyrillicText, String content) {
 		Queue<String> possibleTextList = new ConcurrentLinkedQueue<>(
 				Arrays.asList(content.split("\\\"|\"|'|</?.*?>|&.*?;|\\$\\w+\\[\\w*\\]|\\n|\\r|;|\\-|\\{|\\}|:")));
 		for (String possibleText : possibleTextList) {
@@ -97,7 +117,7 @@ public class Tokenise {
 		}
 	}
 
-	private static String translate(Map<String, String> cyrillicText, String content) {
+	private String translate(Map<String, String> cyrillicText, String content) {
 		GoogleTranslation translation = new GoogleTranslation();
 
 		for (Map.Entry<String, String> entry : cyrillicText.entrySet()) {
@@ -116,9 +136,19 @@ public class Tokenise {
 		return content;
 	}
 
-	private static void saveTranslated(File translatedOutputFile, String translatedText) throws IOException {
+	private void saveTranslated(File translatedOutputFile, String translatedText) throws IOException {
 		try (OutputStreamWriter osw = new OutputStreamWriter(new FileOutputStream(translatedOutputFile), "UTF-8")) {
 			osw.write(translatedText);
+		}
+	}
+
+	public static void main(String[] args) throws FileNotFoundException, IOException {
+		Options opts = getCommandLineOptions();
+		try {
+			CommandLine commandLine = new DefaultParser().parse(opts, args);
+			new Tokenise(commandLine).go();
+		} catch (ParseException e) {
+			new HelpFormatter().printHelp("java -jar translate.utils.jar", opts);
 		}
 	}
 }
