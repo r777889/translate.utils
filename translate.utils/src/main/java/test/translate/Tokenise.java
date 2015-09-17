@@ -26,28 +26,49 @@ public class Tokenise {
 
 	public static void main(String[] args) throws FileNotFoundException, IOException {
 		File dictionary = new File(args[0]);
-		DicoTableModel model = new DicoTableModel();
-		TranslatorUtils.fillDico(model, dictionary);
 
+		Map<String, String> cyrillicText = loadDictionary(dictionary);
+
+		File original = new File(args[1]);
+		String content = loadOriginal(original);
+
+		getTokens(cyrillicText, content);
+
+		String translatedText = translate(cyrillicText, content);
+
+		TranslatorUtils.persistDico(cyrillicText, dictionary);
+
+		File translatedOutputFile = new File(args[2]);
+		saveTranslated(translatedOutputFile, translatedText);
+
+	}
+
+	private static Map<String, String> loadDictionary(File dictionary) {
 		Map<String, String> cyrillicText = new HashMap<>();
 
+		DicoTableModel model = new DicoTableModel();
+		TranslatorUtils.fillDico(model, dictionary);
 		for (DicoEntry entry : model.items) {
 			if (entry.getTranslated() != null && !entry.getTranslated().isEmpty()) {
 				cyrillicText.put(entry.getOriginal(), entry.getTranslated());
 			}
 		}
+		return cyrillicText;
+	}
 
-		String content = "";
+	private static String loadOriginal(File original) throws IOException {
 		ByteArrayOutputStream baos = new ByteArrayOutputStream();
-		try (BufferedInputStream bis = new BufferedInputStream(new FileInputStream(args[1]))) {
+		try (BufferedInputStream bis = new BufferedInputStream(new FileInputStream(original))) {
 			byte[] buf = new byte[1024];
 			int count = 0;
 			while ((count = bis.read(buf)) != -1) {
 				baos.write(buf, 0, count);
 			}
 		}
-		content = new String(baos.toByteArray(), "UTF-8");
+		return new String(baos.toByteArray(), "UTF-8");
+	}
 
+	private static void getTokens(Map<String, String> cyrillicText, String content) {
 		Queue<String> possibleTextList = new ConcurrentLinkedQueue<>(
 				Arrays.asList(content.split("\\\"|\"|'|</?.*?>|&.*?;|\\$\\w+\\[\\w*\\]|\\n|\\r|;|\\-|\\{|\\}|:")));
 		for (String possibleText : possibleTextList) {
@@ -74,7 +95,9 @@ public class Tokenise {
 				}
 			}
 		}
+	}
 
+	private static String translate(Map<String, String> cyrillicText, String content) {
 		GoogleTranslation translation = new GoogleTranslation();
 
 		for (Map.Entry<String, String> entry : cyrillicText.entrySet()) {
@@ -84,19 +107,18 @@ public class Tokenise {
 			}
 		}
 
-		TranslatorUtils.persistDico(cyrillicText, dictionary);
-
 		List<String> originals = new ArrayList<>(cyrillicText.keySet());
 		originals.sort(new SizeComparator());
 
-		for (String original : originals) {
-			content = content.replace(original, cyrillicText.get(original));
+		for (String original1 : originals) {
+			content = content.replace(original1, cyrillicText.get(original1));
 		}
-
-		try (OutputStreamWriter osw = new OutputStreamWriter(new FileOutputStream(args[2]), "UTF-8")) {
-			osw.write(content);
-		}
-
+		return content;
 	}
 
+	private static void saveTranslated(File translatedOutputFile, String translatedText) throws IOException {
+		try (OutputStreamWriter osw = new OutputStreamWriter(new FileOutputStream(translatedOutputFile), "UTF-8")) {
+			osw.write(translatedText);
+		}
+	}
 }
