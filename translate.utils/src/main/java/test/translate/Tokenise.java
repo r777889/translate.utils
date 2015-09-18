@@ -97,7 +97,9 @@ public class Tokenise {
 		for (Map.Entry<String, String> entry : cyrillicText.entrySet()) {
 			if (entry.getValue() == null || entry.getValue().isEmpty()) {
 				System.out.println("translating " + entry.getKey());
-				entry.setValue(translation.translate(entry.getKey(), ELanguage.RUSSIAN, ELanguage.ENGLISH, null));
+				String translationString = translation.translate(entry.getKey(), ELanguage.RUSSIAN, ELanguage.ENGLISH, null);
+				translationString = translationString.replaceAll("'", "’"); // avoid any single quote programming issues
+				entry.setValue(translationString);
 			}
 		}
 
