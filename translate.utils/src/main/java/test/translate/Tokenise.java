@@ -4,7 +4,6 @@ import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
@@ -16,13 +15,6 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.DefaultParser;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
-
 import qsptools.translator.bean.DicoEntry;
 import qsptools.translator.model.DicoTableModel;
 import qsptools.translator.utils.TranslatorUtils;
@@ -31,17 +23,7 @@ import translator.service.get.impl.GoogleTranslation;
 
 public class Tokenise {
 
-	private File dictionary;
-	private File original;
-	private File translatedOutputFile;
-
-	public Tokenise(CommandLine commandLine) {
-		dictionary = new File(commandLine.getOptionValue("d"));
-		original = new File(commandLine.getOptionValue("i"));
-		translatedOutputFile = new File(commandLine.getOptionValue("o"));
-	}
-
-	private void go() throws IOException {
+	public void go(File dictionary, File original, File translatedOutputFile) throws IOException {
 		Map<String, String> cyrillicText = loadDictionary(dictionary);
 
 		String content = loadOriginal(original);
@@ -53,14 +35,6 @@ public class Tokenise {
 		TranslatorUtils.persistDico(cyrillicText, dictionary);
 
 		saveTranslated(translatedOutputFile, translatedText);
-	}
-
-	private static Options getCommandLineOptions() {
-		Options opts = new Options();
-		opts.addOption(Option.builder("d").argName("dictionary").required().hasArg().build());
-		opts.addOption(Option.builder("i").argName("input").required().hasArg().build());
-		opts.addOption(Option.builder("o").argName("output").required().hasArg().build());
-		return opts;
 	}
 
 	private Map<String, String> loadDictionary(File dictionary) {
@@ -90,7 +64,7 @@ public class Tokenise {
 
 	private void getTokens(Map<String, String> cyrillicText, String content) {
 		Queue<String> possibleTextList = new ConcurrentLinkedQueue<>(
-				Arrays.asList(content.split("\\\"|\"|'|</?.*?>|&.*?;|\\$\\w+\\[\\w*\\]|\\n|\\r|;|\\-|\\{|\\}|:")));
+				Arrays.asList(content.split("\\\"|\"|'|</?.*?>|&.*?;|\\$\\w+\\[\\w*\\]|\\n|\\r|;|\\-|\\{|\\}|:|\\[|\\]")));
 		for (String possibleText : possibleTextList) {
 			String result = possibleText.trim();
 			if (result.startsWith(">")) {
@@ -142,13 +116,4 @@ public class Tokenise {
 		}
 	}
 
-	public static void main(String[] args) throws FileNotFoundException, IOException {
-		Options opts = getCommandLineOptions();
-		try {
-			CommandLine commandLine = new DefaultParser().parse(opts, args);
-			new Tokenise(commandLine).go();
-		} catch (ParseException e) {
-			new HelpFormatter().printHelp("java -jar translate.utils.jar", opts);
-		}
-	}
 }
